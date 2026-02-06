@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+/* Terminal-ish color scheme */
+:root {
+  --bg-base: #1c1c1c;
+  --bg-surface: #242424;
+  --bg-elevated: #2d2d2d;
+  --bg-hover: #363636;
+  --text-primary: #e0e0e0;
+  --text-secondary: #a0a0a0;
+  --text-muted: #666666;
+  --accent: #7c9885;
+  --accent-dim: #5a7260;
+  --border-subtle: #333333;
+}
+
+body {
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  min-height: 100vh;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+}
+
+/* Scrollbar styling - hidden by default */
+::-webkit-scrollbar {
+  width: 0px;
+  background: transparent;
+}
+
+/* Show scrollbar on hover for containers that need it */
+.show-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.show-scrollbar::-webkit-scrollbar-track {
+  background: var(--bg-base);
+}
+
+.show-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--bg-elevated);
+  border-radius: 3px;
+}
+
+.show-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--bg-hover);
+}
+
+/* Remove default focus outlines, add subtle ones */
+*:focus {
+  outline: none;
+}
+
+*:focus-visible {
+  outline: 1px solid var(--accent-dim);
+  outline-offset: 1px;
+}
+
+/* Animation for loading indicator */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
