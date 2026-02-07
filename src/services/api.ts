@@ -284,4 +284,44 @@ export const activity = {
   },
 };
 
+// World update notification types
+export interface ProcessingStartedEvent {
+  type: 'processing_started';
+  locked_by: string;
+  character_name: string;
+  timestamp: string;
+}
+
+export interface ProcessingCompleteEvent {
+  type: 'processing_complete';
+  messages_updated_at: string;
+  events_updated_at: string;
+}
+
+export interface ConnectedEvent {
+  type: 'connected';
+  world_id: string;
+  subscriber_count: number;
+}
+
+export type UpdateEvent = ProcessingStartedEvent | ProcessingCompleteEvent | ConnectedEvent | { type: 'ping' } | { type: 'error'; message: string };
+
+// World updates API (multi-user sync notifications)
+export const updates = {
+  /**
+   * Create an SSE connection for world update notifications.
+   * Used for multi-user synchronization.
+   * Returns an EventSource that emits:
+   * - connected: Connection established
+   * - processing_started: Another user started interacting with GM
+   * - processing_complete: GM finished responding, refresh data
+   * - ping: Keep-alive
+   */
+  createStream(worldId: string): EventSource {
+    const token = localStorage.getItem('token');
+    const url = `${API_BASE}/worlds/${worldId}/updates/stream?token=${token}`;
+    return new EventSource(url);
+  },
+};
+
 export { ApiError };

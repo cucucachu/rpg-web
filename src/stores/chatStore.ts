@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Message, WorldSummary } from '../types';
-import { worlds, messages, events, type GameEvent } from '../services/api';
+import { worlds, messages, events, updates, type GameEvent, type UpdateEvent } from '../services/api';
 
 interface ChatState {
   // World list
@@ -19,15 +19,24 @@ interface ChatState {
   isLoadingEvents: boolean;
   
   // Processing state
-  isProcessing: boolean;
-  isSending: boolean;
+  isProcessing: boolean;  // SSE-driven: true when GM is working (any user's request)
+  isSending: boolean;     // Local: true while our HTTP request is in flight
   error: string | null;
   
-  // SSE connection
-  eventSource: EventSource | null;
+  // Multi-user lock state
+  worldLockedBy: string | null;  // user_id of who has the lock
+  worldLockedCharacter: string | null;  // character name for display
+  
+  // Timestamps for detecting updates
+  lastMessagesTimestamp: string | null;
+  lastEventsTimestamp: string | null;
+  
+  // SSE connections
+  eventSource: EventSource | null;  // Messages stream
+  updatesEventSource: EventSource | null;  // Updates notifications stream
   
   // Actions
-  loadWorlds: () => Promise<void>;
+  loadWorlds: (autoSelect?: boolean) => Promise<void>;
   createWorld: (name: string) => Promise<string | null>;
   joinWorld: (code: string) => Promise<string | null>;
   selectWorld: (worldId: string) => Promise<void>;
@@ -52,12 +61,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isProcessing: false,
   isSending: false,
   error: null,
+  worldLockedBy: null,
+  worldLockedCharacter: null,
+  lastMessagesTimestamp: null,
+  lastEventsTimestamp: null,
   eventSource: null,
+  updatesEventSource: null,
   
-  loadWorlds: async () => {
+  loadWorlds: async (autoSelect: boolean = false) => {
     try {
       const list = await worlds.list();
       set({ worldList: list });
+      
+      // Auto-select the first world (most recent activity) if requested and no world selected
+      if (autoSelect && list.length > 0 && !get().currentWorldId) {
+        await get().selectWorld(list[0].id);
+      }
     } catch (e) {
       set({ error: e instanceof Error ? e.message : 'Failed to load worlds' });
     }
@@ -92,7 +111,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
   
   selectWorld: async (worldId: string) => {
-    const { eventSource, currentWorldId } = get();
+    const { eventSource, updatesEventSource, currentWorldId } = get();
     
     // Don't re-select same world
     if (worldId === currentWorldId) return;
@@ -101,25 +120,39 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (eventSource) {
       eventSource.close();
     }
+    if (updatesEventSource) {
+      updatesEventSource.close();
+    }
     
-    set({
+    // Mark this world as viewed (updates last_viewed in DB and local state)
+    const now = new Date().toISOString();
+    set((state) => ({
       currentWorldId: worldId,
-      currentWorld: get().worldList.find(w => w.id === worldId) || null,
+      currentWorld: state.worldList.find(w => w.id === worldId) || null,
+      // Update last_viewed in local worldList to clear the "new activity" indicator
+      worldList: state.worldList.map(w => 
+        w.id === worldId ? { ...w, last_viewed: now } : w
+      ),
       messageList: [],
       hasMoreMessages: false,
       eventList: [],
       hasMoreEvents: false,
       isProcessing: false,
       error: null,
-    });
+      worldLockedBy: null,
+      worldLockedCharacter: null,
+      lastMessagesTimestamp: null,
+      lastEventsTimestamp: null,
+    }));
     
-    // Load message history and events in parallel
+    // Load message history, events, and update last_viewed on backend in parallel
     await Promise.all([
       get().loadMessages(),
       get().loadEvents(),
+      worlds.get(worldId).catch(() => {}), // Updates last_viewed on backend, ignore errors
     ]);
     
-    // Connect SSE stream
+    // Connect messages SSE stream
     try {
       const es = messages.createStream(worldId);
       
@@ -154,13 +187,61 @@ export const useChatStore = create<ChatState>((set, get) => ({
       };
       
       es.onerror = (error) => {
-        console.error('SSE error:', error);
+        console.error('Messages SSE error:', error);
         // EventSource will auto-reconnect
       };
       
       set({ eventSource: es });
     } catch (e) {
-      console.error('Failed to create SSE stream:', e);
+      console.error('Failed to create messages SSE stream:', e);
+    }
+    
+    // Connect updates SSE stream for multi-user sync
+    try {
+      const updatesEs = updates.createStream(worldId);
+      
+      updatesEs.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data) as UpdateEvent;
+          
+          if (data.type === 'processing_started') {
+            // Another user (or us) started interacting with GM
+            set({
+              isProcessing: true,
+              worldLockedBy: data.locked_by,
+              worldLockedCharacter: data.character_name,
+            });
+          } else if (data.type === 'processing_complete') {
+            // GM finished - clear processing state
+            set({
+              isProcessing: false,
+              worldLockedBy: null,
+              worldLockedCharacter: null,
+              lastMessagesTimestamp: data.messages_updated_at,
+              lastEventsTimestamp: data.events_updated_at,
+            });
+            
+            // Always refresh messages and events
+            // (Message list deduplicates, so this is safe even if HTTP response already added them)
+            get().loadMessages();
+            get().loadEvents();
+          } else if (data.type === 'connected') {
+            console.log(`Connected to world updates, ${data.subscriber_count} subscribers`);
+          }
+          // Ignore ping events
+        } catch (e) {
+          console.error('Failed to parse updates SSE event:', e);
+        }
+      };
+      
+      updatesEs.onerror = (error) => {
+        console.error('Updates SSE error:', error);
+        // EventSource will auto-reconnect
+      };
+      
+      set({ updatesEventSource: updatesEs });
+    } catch (e) {
+      console.error('Failed to create updates SSE stream:', e);
     }
   },
   
@@ -204,7 +285,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return;
     }
     
-    set({ isSending: true, isProcessing: true, error: null });
+    // Only set isSending - let SSE drive isProcessing state
+    set({ isSending: true, error: null });
     
     try {
       // This is a blocking call - waits for agent to respond
@@ -228,7 +310,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         return {
           messageList: newMessages,
           isSending: false,
-          isProcessing: false,
+          // Note: isProcessing is cleared by SSE processing_complete event
         };
       });
       
@@ -242,7 +324,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set({
           error: 'Another message is being processed. Please wait.',
           isSending: false,
-          // Keep isProcessing true - world is still processing
         });
       } else if (isProcessing) {
         // The SSE stream indicates processing is still happening,
@@ -250,29 +331,33 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set({
           error: 'Request timed out, but GM is still working...',
           isSending: false,
-          // Keep isProcessing true - backend is still processing
         });
       } else {
         set({
           error: error.message || 'Failed to send message',
           isSending: false,
-          isProcessing: false,
         });
       }
     }
   },
   
   disconnect: () => {
-    const { eventSource } = get();
+    const { eventSource, updatesEventSource } = get();
     if (eventSource) {
       eventSource.close();
     }
+    if (updatesEventSource) {
+      updatesEventSource.close();
+    }
     set({
       eventSource: null,
+      updatesEventSource: null,
       currentWorldId: null,
       currentWorld: null,
       messageList: [],
       eventList: [],
+      worldLockedBy: null,
+      worldLockedCharacter: null,
     });
   },
   

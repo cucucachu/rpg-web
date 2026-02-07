@@ -8,7 +8,6 @@ export function MessageList() {
     hasMoreMessages,
     isLoadingMessages,
     loadMessages,
-    isProcessing,
     isSending,
   } = useChatStore();
   
@@ -32,7 +31,7 @@ export function MessageList() {
     if (isNearBottomRef.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messageList, isProcessing]);
+  }, [messageList, isSending]);
   
   // Load more on scroll to top
   const handleScroll = () => {
@@ -89,17 +88,16 @@ export function MessageList() {
         <Message key={message.id} message={message} />
       ))}
       
-      {/* Processing indicator */}
-      {(isProcessing || isSending) && (
+      {/* Sending indicator - immediate feedback while HTTP request is in flight */}
+      {/* Note: Processing state (GM thinking) is shown in AgentStatus via SSE */}
+      {isSending && (
         <div className="py-4 px-6">
           <div className="flex items-center gap-2" style={{ color: 'var(--text-muted)' }}>
             <span 
               className="inline-block w-2 h-2 rounded-full animate-pulse" 
               style={{ backgroundColor: 'var(--accent-dim)' }} 
             />
-            <span className="text-sm">
-              {isSending ? 'sending...' : 'thinking...'}
-            </span>
+            <span className="text-sm">sending...</span>
           </div>
         </div>
       )}

@@ -59,12 +59,43 @@ function RecordsPane() {
 }
 
 export function ChatView() {
-  const { currentWorld } = useChatStore();
+  const { currentWorld, worldList, createWorld, joinWorld } = useChatStore();
   const [chatWidthPercent, setChatWidthPercent] = useState(66); // Chat takes 2/3 by default
   const [activeTab, setActiveTab] = useState<'narrative' | 'records'>('narrative'); // Mobile tab state
+  const [welcomeMode, setWelcomeMode] = useState<'idle' | 'creating' | 'joining'>('idle');
+  const [inputValue, setInputValue] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
   const isMobile = useIsMobile();
+  
+  const handleWelcomeCreate = async () => {
+    if (!inputValue.trim() || isSubmitting) return;
+    setIsSubmitting(true);
+    await createWorld(inputValue.trim());
+    setIsSubmitting(false);
+    setWelcomeMode('idle');
+    setInputValue('');
+  };
+  
+  const handleWelcomeJoin = async () => {
+    if (!inputValue.trim() || isSubmitting) return;
+    setIsSubmitting(true);
+    await joinWorld(inputValue.trim());
+    setIsSubmitting(false);
+    setWelcomeMode('idle');
+    setInputValue('');
+  };
+  
+  const handleWelcomeKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      if (welcomeMode === 'creating') handleWelcomeCreate();
+      else if (welcomeMode === 'joining') handleWelcomeJoin();
+    } else if (e.key === 'Escape') {
+      setWelcomeMode('idle');
+      setInputValue('');
+    }
+  };
   
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -95,6 +126,98 @@ export function ChatView() {
   }, []);
   
   if (!currentWorld) {
+    // No worlds exist - show welcome screen with create/join buttons
+    if (worldList.length === 0) {
+      return (
+        <div className="flex-1 flex items-center justify-center" style={{ backgroundColor: 'var(--bg-base)' }}>
+          <div className="text-center max-w-md px-6">
+            <h2 
+              className="text-2xl font-medium mb-2"
+              style={{ color: 'var(--text-primary)' }}
+            >
+              Welcome
+            </h2>
+            <p 
+              className="text-sm mb-8"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              Create a new world to start your adventure, or join an existing one with an invite code.
+            </p>
+            
+            {welcomeMode !== 'idle' ? (
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  placeholder={welcomeMode === 'creating' ? 'World name...' : 'Invite code...'}
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onKeyDown={handleWelcomeKeyDown}
+                  autoFocus
+                  disabled={isSubmitting}
+                  className="w-full px-4 py-3 text-sm outline-none rounded"
+                  style={{
+                    backgroundColor: 'var(--bg-elevated)',
+                    color: 'var(--text-primary)',
+                    border: '1px solid var(--border)',
+                  }}
+                />
+                <div className="flex gap-3">
+                  <button
+                    onClick={welcomeMode === 'creating' ? handleWelcomeCreate : handleWelcomeJoin}
+                    disabled={!inputValue.trim() || isSubmitting}
+                    className="flex-1 px-4 py-3 text-sm font-medium rounded transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{
+                      color: 'var(--bg-base)',
+                      backgroundColor: 'var(--accent)',
+                    }}
+                  >
+                    {isSubmitting 
+                      ? (welcomeMode === 'creating' ? 'Creating...' : 'Joining...') 
+                      : (welcomeMode === 'creating' ? 'Create World' : 'Join World')}
+                  </button>
+                  <button
+                    onClick={() => { setWelcomeMode('idle'); setInputValue(''); }}
+                    disabled={isSubmitting}
+                    className="px-4 py-3 text-sm rounded transition-colors cursor-pointer"
+                    style={{
+                      color: 'var(--text-muted)',
+                      backgroundColor: 'var(--bg-elevated)',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <button
+                  onClick={() => setWelcomeMode('creating')}
+                  className="px-6 py-3 text-sm font-medium rounded transition-colors cursor-pointer"
+                  style={{
+                    color: 'var(--bg-base)',
+                    backgroundColor: 'var(--accent)',
+                  }}
+                >
+                  Create World
+                </button>
+                <button
+                  onClick={() => setWelcomeMode('joining')}
+                  className="px-6 py-3 text-sm font-medium rounded transition-colors cursor-pointer"
+                  style={{
+                    color: 'var(--text-secondary)',
+                    backgroundColor: 'var(--bg-elevated)',
+                  }}
+                >
+                  Join World
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+    
+    // Worlds exist but none selected (shouldn't happen with auto-select, but just in case)
     return (
       <div className="flex-1 flex items-center justify-center" style={{ backgroundColor: 'var(--bg-base)' }}>
         <div className="text-center" style={{ color: 'var(--text-muted)' }}>

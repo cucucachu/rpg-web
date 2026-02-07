@@ -160,12 +160,23 @@ export function Message({ message }: MessageProps) {
   }
   
   // Player messages
+  // Format: "username as charactername timestamp" or just "username timestamp" if no character
+  const showAsCharacter = message.display_name && message.character_name && message.display_name !== message.character_name;
+  
   return (
     <div className="py-3 px-6">
       <div className="flex items-baseline gap-2 mb-1">
         <span className="text-sm font-medium" style={{ color: 'var(--accent)' }}>
-          {message.character_name}
+          {message.display_name || message.character_name}
         </span>
+        {showAsCharacter && (
+          <>
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>as</span>
+            <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+              {message.character_name}
+            </span>
+          </>
+        )}
         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
           {timeStr}
         </span>

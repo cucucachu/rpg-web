@@ -1,14 +1,28 @@
 import { useChatStore } from '../../stores/chatStore';
+import { useAuthStore } from '../../stores/authStore';
 
 export function AgentStatus() {
-  const { isProcessing, error, clearError } = useChatStore();
+  const { isProcessing, isSending, error, clearError, worldLockedBy, worldLockedCharacter } = useChatStore();
+  const { user } = useAuthStore();
   
-  if (!isProcessing && !error) {
+  // Show when sending, processing, or there's an error
+  const isActive = isSending || isProcessing;
+  
+  if (!isActive && !error) {
     return null;
   }
   
   // Determine if this is a "soft" error (timeout while still processing)
-  const isSoftError = isProcessing && error;
+  const isSoftError = isActive && error;
+  
+  // Determine if another user has the lock
+  const isLockedByOther = worldLockedBy && user && worldLockedBy !== user.id;
+  
+  // Generate the status message
+  let statusMessage = isSending ? 'sending...' : 'GM is thinking...';
+  if (isLockedByOther && worldLockedCharacter) {
+    statusMessage = `GM is responding to ${worldLockedCharacter}...`;
+  }
   
   return (
     <div 
@@ -20,14 +34,14 @@ export function AgentStatus() {
       }}
     >
       <div className="flex items-center gap-2 min-w-0 flex-1">
-        {isProcessing && (
+        {isActive && (
           <>
             {/* Animated typing indicator */}
             <span className="flex gap-1 items-center flex-shrink-0">
               <span 
                 className="w-1.5 h-1.5 rounded-full animate-bounce"
                 style={{ 
-                  backgroundColor: 'var(--accent-primary)',
+                  backgroundColor: isLockedByOther ? 'var(--text-muted)' : 'var(--accent-primary)',
                   animationDelay: '0ms',
                   animationDuration: '0.6s',
                 }}
@@ -35,7 +49,7 @@ export function AgentStatus() {
               <span 
                 className="w-1.5 h-1.5 rounded-full animate-bounce"
                 style={{ 
-                  backgroundColor: 'var(--accent-primary)',
+                  backgroundColor: isLockedByOther ? 'var(--text-muted)' : 'var(--accent-primary)',
                   animationDelay: '150ms',
                   animationDuration: '0.6s',
                 }}
@@ -43,13 +57,13 @@ export function AgentStatus() {
               <span 
                 className="w-1.5 h-1.5 rounded-full animate-bounce"
                 style={{ 
-                  backgroundColor: 'var(--accent-primary)',
+                  backgroundColor: isLockedByOther ? 'var(--text-muted)' : 'var(--accent-primary)',
                   animationDelay: '300ms',
                   animationDuration: '0.6s',
                 }}
               />
             </span>
-            <span className="flex-shrink-0">GM is thinking...</span>
+            <span className="flex-shrink-0">{statusMessage}</span>
             {isSoftError && (
               <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
                 — request timed out but still working
@@ -57,13 +71,13 @@ export function AgentStatus() {
             )}
           </>
         )}
-        {!isProcessing && error && (
+        {!isActive && error && (
           <span>{error}</span>
         )}
       </div>
       
-      {/* Dismiss button for non-processing errors */}
-      {!isProcessing && error && (
+      {/* Dismiss button for non-active errors */}
+      {!isActive && error && (
         <button
           onClick={clearError}
           className="px-2 py-0.5 text-xs rounded hover:bg-opacity-80 transition-colors flex-shrink-0"

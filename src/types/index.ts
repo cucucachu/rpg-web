@@ -14,6 +14,8 @@ export interface WorldSummary {
   role: 'god' | 'mortal';
   character_id: string | null;
   character_name: string | null;
+  last_activity: string | null;  // ISO timestamp of most recent message
+  last_viewed: string | null;    // ISO timestamp when user last viewed this world
 }
 
 export interface WorldDetail extends WorldSummary {
@@ -28,6 +30,7 @@ export interface Message {
   world_id: string;
   user_id: string | null;
   character_name: string;
+  display_name: string | null;  // User's display name (for player messages)
   content: string;
   message_type: 'player' | 'gm' | 'system';
   created_at: string;

@@ -65,14 +65,14 @@ export function AppLayout() {
           />
         )}
         
-        {/* Sidebar - slide-out on mobile, fixed on desktop */}
+        {/* Sidebar - slide-out on mobile, relative on desktop */}
         <aside 
           className={`
-            fixed inset-y-0 left-0 z-40 w-64 transform transition-transform duration-200 ease-in-out
-            md:relative md:translate-x-0 md:w-56 md:flex-shrink-0
+            fixed top-12 bottom-0 left-0 z-40 w-64 transform transition-transform duration-200 ease-in-out
+            md:relative md:top-0 md:translate-x-0 md:w-56 md:flex-shrink-0
             ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
           `}
-          style={{ backgroundColor: 'var(--bg-surface)', top: '48px' }}
+          style={{ backgroundColor: 'var(--bg-surface)' }}
         >
           <WorldList onCloseSidebar={closeSidebar} />
         </aside>
