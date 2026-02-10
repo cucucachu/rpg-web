@@ -260,30 +260,6 @@ export const events = {
 };
 
 // Agent activity types
-export interface AgentActivity {
-  id: string;
-  world_id: string;
-  node_name: string;
-  activity_type: string;
-  content: string;
-  created_at: string;
-}
-
-// Agent activity API (internal agent state streaming)
-export const activity = {
-  /**
-   * Create an SSE connection for streaming agent activity.
-   * Returns an EventSource that emits:
-   * - activity: New agent activity record
-   * - ping: Keep-alive
-   */
-  createStream(worldId: string): EventSource {
-    const token = localStorage.getItem('token');
-    const url = `${API_BASE}/worlds/${worldId}/activity/stream?token=${token}`;
-    return new EventSource(url);
-  },
-};
-
 // World update notification types
 export interface ProcessingStartedEvent {
   type: 'processing_started';
