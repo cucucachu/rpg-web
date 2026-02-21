@@ -150,24 +150,24 @@ export function Message({ message }: MessageProps) {
     // GM messages - narrative style with markdown rendering
     return (
       <>
-        <div className="group py-4 px-6">
-          <div style={{ color: 'var(--text-primary)' }}>
-            <ReactMarkdown components={markdownComponents}>
-              {message.content}
-            </ReactMarkdown>
-          </div>
-          <div className="mt-2 flex items-center gap-3">
+        <div className="py-4 px-6">
+          <div className="flex items-center justify-between mb-3">
             <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
               {timeStr}
             </span>
             <button
               onClick={() => setShowBugModal(true)}
-              className="text-xs opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+              className="text-xs"
               style={{ color: 'var(--text-muted)' }}
               title="Report an issue with this response"
             >
               report issue
             </button>
+          </div>
+          <div style={{ color: 'var(--text-primary)' }}>
+            <ReactMarkdown components={markdownComponents}>
+              {message.content}
+            </ReactMarkdown>
           </div>
         </div>
         {showBugModal && (
