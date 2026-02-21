@@ -210,6 +210,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
               isProcessing: true,
               worldLockedBy: data.locked_by,
               worldLockedCharacter: data.character_name,
+              error: null,  // Clear any previous errors
             });
           } else if (data.type === 'processing_complete') {
             // GM finished - clear processing state
@@ -219,12 +220,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
               worldLockedCharacter: null,
               lastMessagesTimestamp: data.messages_updated_at,
               lastEventsTimestamp: data.events_updated_at,
+              error: null,  // Clear any errors on successful completion
             });
             
             // Always refresh messages and events
-            // (Message list deduplicates, so this is safe even if HTTP response already added them)
+            // The GM message will appear when we refresh
             get().loadMessages();
             get().loadEvents();
+          } else if (data.type === 'processing_error') {
+            // Background processing failed - show error to user
+            set({
+              isProcessing: false,
+              worldLockedBy: null,
+              worldLockedCharacter: null,
+              error: `GM Error: ${data.error}`,
+            });
           } else if (data.type === 'connected') {
             console.log(`Connected to world updates, ${data.subscriber_count} subscribers`);
           }
@@ -285,15 +295,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return;
     }
     
-    // Only set isSending - let SSE drive isProcessing state
+    // Set isSending - this will be cleared when HTTP request completes
+    // isProcessing will be set by SSE processing_started event
     set({ isSending: true, error: null });
     
     try {
-      // This is a blocking call - waits for agent to respond
+      // This now returns immediately (202 Accepted) with just the user message
+      // GM response will arrive via SSE processing_complete event
       const response = await messages.send(currentWorldId, content);
       
-      // Messages will be added via SSE, but add them here too for immediate feedback
-      // SSE handler will deduplicate
+      // Add user message immediately for instant feedback
       set((state) => {
         const newMessages = [...state.messageList];
         
@@ -302,34 +313,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
           newMessages.push(response.user_message);
         }
         
-        // Add GM message if present and not already there
-        if (response.gm_message && !newMessages.some(m => m.id === response.gm_message!.id)) {
-          newMessages.push(response.gm_message);
-        }
-        
         return {
           messageList: newMessages,
-          isSending: false,
-          // Note: isProcessing is cleared by SSE processing_complete event
+          isSending: false,  // HTTP request complete
+          // isProcessing will be set by SSE processing_started event
         };
       });
       
-      // Refresh events after successful message - scribe creates events at end of turn
-      get().loadEvents();
+      // Note: GM message arrives later via SSE processing_complete -> loadMessages()
+      // Note: Events are refreshed when SSE processing_complete fires
     } catch (e: unknown) {
       const error = e as { status?: number; message?: string };
-      const { isProcessing } = get();
       
       if (error.status === 409) {
         set({
           error: 'Another message is being processed. Please wait.',
-          isSending: false,
-        });
-      } else if (isProcessing) {
-        // The SSE stream indicates processing is still happening,
-        // so this is likely a timeout - don't show a scary error
-        set({
-          error: 'Request timed out, but GM is still working...',
           isSending: false,
         });
       } else {

@@ -99,6 +99,14 @@ export type WSEvent =
   | WSUserLeft
   | WSError;
 
+// Bug report types
+export interface BugReport {
+  id: string;
+  trace_id: string;
+  user_id: string;
+  description: string;
+}
+
 // Auth types
 export interface LoginRequest {
   email: string;

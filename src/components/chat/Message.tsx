@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import type { Message as MessageType } from '../../types';
 import ReactMarkdown from 'react-markdown';
 import type { Components } from 'react-markdown';
+import { BugReportModal } from './BugReportModal';
 
 interface MessageProps {
   message: MessageType;
@@ -126,6 +128,7 @@ const markdownComponents: Components = {
 };
 
 export function Message({ message }: MessageProps) {
+  const [showBugModal, setShowBugModal] = useState(false);
   const isGM = message.message_type === 'gm';
   const isSystem = message.message_type === 'system';
   
@@ -146,16 +149,35 @@ export function Message({ message }: MessageProps) {
   if (isGM) {
     // GM messages - narrative style with markdown rendering
     return (
-      <div className="py-4 px-6">
-        <div style={{ color: 'var(--text-primary)' }}>
-          <ReactMarkdown components={markdownComponents}>
-            {message.content}
-          </ReactMarkdown>
+      <>
+        <div className="group py-4 px-6">
+          <div style={{ color: 'var(--text-primary)' }}>
+            <ReactMarkdown components={markdownComponents}>
+              {message.content}
+            </ReactMarkdown>
+          </div>
+          <div className="mt-2 flex items-center gap-3">
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              {timeStr}
+            </span>
+            <button
+              onClick={() => setShowBugModal(true)}
+              className="text-xs opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+              style={{ color: 'var(--text-muted)' }}
+              title="Report an issue with this response"
+            >
+              report issue
+            </button>
+          </div>
         </div>
-        <div className="mt-2 text-xs" style={{ color: 'var(--text-muted)' }}>
-          {timeStr}
-        </div>
-      </div>
+        {showBugModal && (
+          <BugReportModal
+            worldId={message.world_id}
+            messageId={message.id}
+            onClose={() => setShowBugModal(false)}
+          />
+        )}
+      </>
     );
   }
   

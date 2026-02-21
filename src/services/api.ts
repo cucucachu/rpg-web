@@ -3,6 +3,7 @@ import type {
   WorldSummary,
   WorldDetail,
   Message,
+  BugReport,
   LoginRequest,
   RegisterRequest,
   TokenResponse,
@@ -154,13 +155,19 @@ export const worlds = {
 export interface SendMessageResponse {
   user_message: Message;
   gm_message: Message | null;
+  status: string;  // "processing" when returned immediately, "complete" if already done
 }
 
 export const messages = {
   /**
-   * Send a message to the GM agent.
-   * This is a BLOCKING call that waits for the agent to respond.
-   * May take 10-60 seconds depending on agent complexity.
+   * Send a message to the GM agent (NON-BLOCKING).
+   * Returns immediately (202 Accepted) with just the user message.
+   * The GM response is processed in the background and delivered via SSE.
+   * 
+   * Listen for SSE events on /worlds/{worldId}/updates/stream:
+   * - processing_started: GM is thinking
+   * - processing_complete: Refresh messages (GM response is ready)
+   * - processing_error: Something went wrong
    */
   async send(worldId: string, content: string): Promise<SendMessageResponse> {
     return request<SendMessageResponse>(`/worlds/${worldId}/messages`, {
@@ -203,6 +210,16 @@ export const messages = {
     // Note: EventSource doesn't support custom headers, so we pass token as query param
     const url = `${API_BASE}/worlds/${worldId}/messages/stream?token=${token}`;
     return new EventSource(url);
+  },
+
+  /**
+   * Submit a bug report against a GM message's agent trace.
+   */
+  async reportBug(worldId: string, messageId: string, description: string): Promise<BugReport> {
+    return request<BugReport>(`/worlds/${worldId}/messages/${messageId}/bugs`, {
+      method: 'POST',
+      body: JSON.stringify({ description }),
+    });
   },
 };
 
@@ -280,7 +297,13 @@ export interface ConnectedEvent {
   subscriber_count: number;
 }
 
-export type UpdateEvent = ProcessingStartedEvent | ProcessingCompleteEvent | ConnectedEvent | { type: 'ping' } | { type: 'error'; message: string };
+export interface ProcessingErrorEvent {
+  type: 'processing_error';
+  error: string;
+  timestamp: string;
+}
+
+export type UpdateEvent = ProcessingStartedEvent | ProcessingCompleteEvent | ProcessingErrorEvent | ConnectedEvent | { type: 'ping' } | { type: 'error'; message: string };
 
 // World updates API (multi-user sync notifications)
 export const updates = {
