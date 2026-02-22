@@ -303,7 +303,17 @@ export interface ProcessingErrorEvent {
   timestamp: string;
 }
 
-export type UpdateEvent = ProcessingStartedEvent | ProcessingCompleteEvent | ProcessingErrorEvent | ConnectedEvent | { type: 'ping' } | { type: 'error'; message: string };
+export interface ProcessingStepEvent {
+  type: 'processing_step';
+  step: string;
+}
+
+export interface GmResponseReadyEvent {
+  type: 'gm_response_ready';
+  message: import('../types').Message;
+}
+
+export type UpdateEvent = ProcessingStartedEvent | ProcessingCompleteEvent | ProcessingErrorEvent | ConnectedEvent | ProcessingStepEvent | GmResponseReadyEvent | { type: 'ping' } | { type: 'error'; message: string };
 
 // World updates API (multi-user sync notifications)
 export const updates = {
