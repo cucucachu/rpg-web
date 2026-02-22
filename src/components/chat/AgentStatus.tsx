@@ -1,28 +1,29 @@
 import { useChatStore } from '../../stores/chatStore';
-import { useAuthStore } from '../../stores/authStore';
+
+const STEP_LABELS: Record<string, string> = {
+  loading:       'loading context...',
+  historian:     'historian is researching...',
+  barrister:     'analyzing mechanics...',
+  gm:            'GM is writing...',
+  finalizing:    'recording events...',
+  world_creator: 'building the world...',
+  char_creator:  'creating character...',
+};
 
 export function AgentStatus() {
-  const { isProcessing, isSending, error, clearError, worldLockedBy, worldLockedCharacter } = useChatStore();
-  const { user } = useAuthStore();
+  const { isProcessing, isSending, processingStep, error, clearError } = useChatStore();
   
-  // Show when sending, processing, or there's an error
   const isActive = isSending || isProcessing;
   
   if (!isActive && !error) {
     return null;
   }
   
-  // Determine if this is a "soft" error (timeout while still processing)
   const isSoftError = isActive && error;
-  
-  // Determine if another user has the lock
-  const isLockedByOther = worldLockedBy && user && worldLockedBy !== user.id;
-  
-  // Generate the status message
-  let statusMessage = isSending ? 'sending...' : 'GM is thinking...';
-  if (isLockedByOther && worldLockedCharacter) {
-    statusMessage = `GM is responding to ${worldLockedCharacter}...`;
-  }
+
+  const statusMessage = isSending
+    ? 'sending...'
+    : (processingStep ? (STEP_LABELS[processingStep] ?? 'GM is thinking...') : 'GM is thinking...');
   
   return (
     <div 
@@ -40,27 +41,15 @@ export function AgentStatus() {
             <span className="flex gap-1 items-center flex-shrink-0">
               <span 
                 className="w-1.5 h-1.5 rounded-full animate-bounce"
-                style={{ 
-                  backgroundColor: isLockedByOther ? 'var(--text-muted)' : 'var(--accent-primary)',
-                  animationDelay: '0ms',
-                  animationDuration: '0.6s',
-                }}
+                style={{ backgroundColor: 'var(--accent-primary)', animationDelay: '0ms', animationDuration: '0.6s' }}
               />
               <span 
                 className="w-1.5 h-1.5 rounded-full animate-bounce"
-                style={{ 
-                  backgroundColor: isLockedByOther ? 'var(--text-muted)' : 'var(--accent-primary)',
-                  animationDelay: '150ms',
-                  animationDuration: '0.6s',
-                }}
+                style={{ backgroundColor: 'var(--accent-primary)', animationDelay: '150ms', animationDuration: '0.6s' }}
               />
               <span 
                 className="w-1.5 h-1.5 rounded-full animate-bounce"
-                style={{ 
-                  backgroundColor: isLockedByOther ? 'var(--text-muted)' : 'var(--accent-primary)',
-                  animationDelay: '300ms',
-                  animationDuration: '0.6s',
-                }}
+                style={{ backgroundColor: 'var(--accent-primary)', animationDelay: '300ms', animationDuration: '0.6s' }}
               />
             </span>
             <span className="flex-shrink-0">{statusMessage}</span>
