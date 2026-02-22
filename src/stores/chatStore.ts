@@ -21,6 +21,7 @@ interface ChatState {
   // Processing state
   isProcessing: boolean;  // SSE-driven: true when GM is working (any user's request)
   isSending: boolean;     // Local: true while our HTTP request is in flight
+  processingStep: string | null;  // current agent phase, e.g. "historian", "gm", "finalizing"
   error: string | null;
   
   // Multi-user lock state
@@ -60,6 +61,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isLoadingEvents: false,
   isProcessing: false,
   isSending: false,
+  processingStep: null,
   error: null,
   worldLockedBy: null,
   worldLockedCharacter: null,
@@ -138,6 +140,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       eventList: [],
       hasMoreEvents: false,
       isProcessing: false,
+      processingStep: null,
       error: null,
       worldLockedBy: null,
       worldLockedCharacter: null,
@@ -208,14 +211,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
             // Another user (or us) started interacting with GM
             set({
               isProcessing: true,
+              processingStep: null,
               worldLockedBy: data.locked_by,
               worldLockedCharacter: data.character_name,
               error: null,  // Clear any previous errors
             });
+          } else if (data.type === 'processing_step') {
+            // Agent graph progressed to a new phase
+            set({ processingStep: data.step });
+          } else if (data.type === 'gm_response_ready') {
+            // GM response captured before post-processing agents finish — show it immediately
+            const msg = data.message as Message;
+            set((state) => {
+              if (state.messageList.some((m) => m.id === msg.id)) return state;
+              return { messageList: [...state.messageList, msg] };
+            });
+            // isProcessing stays true — world remains locked until processing_complete
           } else if (data.type === 'processing_complete') {
             // GM finished - clear processing state
             set({
               isProcessing: false,
+              processingStep: null,
               worldLockedBy: null,
               worldLockedCharacter: null,
               lastMessagesTimestamp: data.messages_updated_at,
@@ -231,6 +247,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             // Background processing failed - show error to user
             set({
               isProcessing: false,
+              processingStep: null,
               worldLockedBy: null,
               worldLockedCharacter: null,
               error: `GM Error: ${data.error}`,
