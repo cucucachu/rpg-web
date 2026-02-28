@@ -233,6 +233,7 @@ export interface GameEvent {
   description: string;
   participants: string;
   changes: string;
+  mechanics: string;
   tags: string[];
   created_at?: string | null;
 }

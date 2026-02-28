@@ -72,6 +72,14 @@ export function EventItem({ event }: EventItemProps) {
           {event.changes}
         </div>
       )}
+
+      {/* Mechanics */}
+      {event.mechanics && (
+        <div className="text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>
+          <span style={{ color: 'var(--text-muted)' }}>Mechanics: </span>
+          {event.mechanics}
+        </div>
+      )}
       
       {/* Tags */}
       {event.tags && event.tags.length > 0 && (
